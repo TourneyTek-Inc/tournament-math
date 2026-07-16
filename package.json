@@ -1,5 +1,5 @@
 {
-  "name": "@pokerhawk/tournament-math",
+  "name": "@tourneytek/tournament-math",
   "version": "0.1.0",
   "description": "Pure poker tournament math: ICM equity, payout curves, table balancing, and close-table seat planning. Zero dependencies.",
   "keywords": [

@@ -1,7 +1,7 @@
-# @pokerhawk/tournament-math
+# @tourneytek/tournament-math
 
 [![CI](https://github.com/TourneyTek-Inc/tournament-math/actions/workflows/ci.yml/badge.svg)](https://github.com/TourneyTek-Inc/tournament-math/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@pokerhawk/tournament-math.svg)](https://www.npmjs.com/package/@pokerhawk/tournament-math)
+[![npm](https://img.shields.io/npm/v/@tourneytek/tournament-math.svg)](https://www.npmjs.com/package/@tourneytek/tournament-math)
 [![types](https://img.shields.io/badge/types-included-3178C6.svg)](https://www.typescriptlang.org/)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
@@ -12,7 +12,7 @@ Zero dependencies. Pure functions — no I/O, no framework, no globals. Ships ES
 Extracted from [Poker Hawk](https://www.pokerhawk.io), where it runs real tournaments in real rooms.
 
 ```bash
-npm install @pokerhawk/tournament-math
+npm install @tourneytek/tournament-math
 ```
 
 ## Why this exists
@@ -26,7 +26,7 @@ These are the pure-logic pieces pulled out of a shipping product and tested on t
 Independent Chip Model equity by [Malmuth-Harville](https://en.wikipedia.org/wiki/Independent_Chip_Model) recursion — the standard basis for a chip-weighted deal at the final table.
 
 ```ts
-import { calculateIcmEquity } from '@pokerhawk/tournament-math';
+import { calculateIcmEquity } from '@tourneytek/tournament-math';
 
 // Chip leader holds 75% of chips, but nothing close to 75% of the money.
 calculateIcmEquity({ stacks: [75, 25], prizes: [70, 30] });
@@ -38,7 +38,7 @@ Equities are index-aligned with `stacks` and always sum to the sum of `prizes`.
 **ICM is factorial in the field size.** Ten players is milliseconds; fifteen is minutes; twenty outlives the tournament. Rather than appearing to hang, this throws `IcmFieldTooLargeError` above `MAX_PLAYERS` (12). ICM is a final-table tool — filter to the players still in contention first.
 
 ```ts
-import { buildIcmSplitTable } from '@pokerhawk/tournament-math';
+import { buildIcmSplitTable } from '@tourneytek/tournament-math';
 
 // Generic over your player shape; extra fields pass through untouched.
 buildIcmSplitTable(
@@ -58,7 +58,7 @@ buildIcmSplitTable(
 Split a prize pool across paid places with three curve shapes.
 
 ```ts
-import { calculatePayouts } from '@pokerhawk/tournament-math';
+import { calculatePayouts } from '@tourneytek/tournament-math';
 
 calculatePayouts({ totalPot: 1000, payoutCount: 3, formula: 'standard' });
 // → [{ place: 1, amount: 482 }, { place: 2, amount: 314 }, { place: 3, amount: 204 }]
@@ -82,7 +82,7 @@ Work in minor units (cents) if you need sub-unit precision; the integer-exactnes
 As the field shrinks, tables drift out of balance. This computes what to move.
 
 ```ts
-import { computeTableBalance } from '@pokerhawk/tournament-math';
+import { computeTableBalance } from '@tourneytek/tournament-math';
 
 const result = computeTableBalance({
   players: [
@@ -109,7 +109,7 @@ Greedy surplus → deficit matching, moving the last-seated player at each surpl
 Break a table without over-seating a survivor.
 
 ```ts
-import { computeCloseTablePlan } from '@pokerhawk/tournament-math';
+import { computeCloseTablePlan } from '@tourneytek/tournament-math';
 
 const plan = computeCloseTablePlan({
   closeTable: 3,
@@ -139,7 +139,7 @@ Tables with `dealerPlaying: true` keep the dealer's seat free (`dealerPosition: 
 ## Stack pressure
 
 ```ts
-import { computeStackPressure } from '@pokerhawk/tournament-math';
+import { computeStackPressure } from '@tourneytek/tournament-math';
 
 computeStackPressure({ chips: 10_500, sb: 100, bb: 200, ante: 25, playersInHand: 9 });
 // → { bbCount: 52.5, mRatio: 20, zone: 'Green' }
