@@ -2,8 +2,9 @@ export {
   calculateIcmEquity,
   buildIcmSplitTable,
   computeIcmSplit,
-  IcmFieldTooLargeError,
-  MAX_PLAYERS,
+  IcmTooExpensiveError,
+  MAX_PERMUTATIONS,
+  icmPermutationCount,
   type IcmInput,
   type IcmSplitResult,
 } from './icm.js';

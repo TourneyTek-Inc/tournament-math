@@ -35,7 +35,19 @@ calculateIcmEquity({ stacks: [75, 25], prizes: [70, 30] });
 
 Equities are index-aligned with `stacks` and always sum to the sum of `prizes`.
 
-**ICM is factorial in the field size.** Ten players is milliseconds; fifteen is minutes; twenty outlives the tournament. Rather than appearing to hang, this throws `IcmFieldTooLargeError` above `MAX_PLAYERS` (12). ICM is a final-table tool — filter to the players still in contention first.
+**Cost is driven by players × prizes, not by the field size.** The recursion descends once per prize, branching over the remaining players — so the work is permutations `P(n, prizes)`. That means a big field paying a few places is trivial, while a small field paying *everyone* is what melts:
+
+| Players | Prizes | Permutations | Time |
+| --- | --- | --- | --- |
+| 50 | 3 | 117,600 | 1.2 ms |
+| 9 | 9 | 362,880 | 34 ms |
+| 10 | 10 | 3,628,800 | 348 ms |
+| 11 | 11 | 39,916,800 | 3.7 s |
+| 12 | 12 | 479,001,600 | **44 s** |
+
+Rather than appearing to hang, `calculateIcmEquity` throws `IcmTooExpensiveError` above `MAX_PERMUTATIONS` (5,000,000 — roughly half a second). A 50-player settlement paying 3 places is fine; a 12-way deal paying every place is not.
+
+If you hit the limit, pay fewer places or filter to the players still in contention for a prize. `icmPermutationCount(players, prizes)` tells you the cost up front.
 
 ```ts
 import { buildIcmSplitTable } from '@tourneytek/tournament-math';

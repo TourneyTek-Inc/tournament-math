@@ -3,8 +3,9 @@ import {
   buildIcmSplitTable,
   calculateIcmEquity,
   computeIcmSplit,
-  IcmFieldTooLargeError,
-  MAX_PLAYERS,
+  icmPermutationCount,
+  IcmTooExpensiveError,
+  MAX_PERMUTATIONS,
 } from '../icm.js';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -87,17 +88,42 @@ describe('calculateIcmEquity', () => {
     expect(calculateIcmEquity({ stacks: [], prizes: [100] })).toEqual([]);
   });
 
-  it('refuses a field too large to compute rather than hanging', () => {
-    const stacks = new Array(MAX_PLAYERS + 1).fill(1000);
-    expect(() => calculateIcmEquity({ stacks, prizes: [100] })).toThrow(IcmFieldTooLargeError);
-  });
-
-  it('computes the largest supported field in reasonable time', () => {
-    const stacks = Array.from({ length: MAX_PLAYERS }, (_, i) => (i + 1) * 1000);
+  // Cost is permutations P(n, prizes), NOT the field size. A big field
+  // paying few places is trivial; a small field paying everyone is what
+  // melts. Measured: 50x3 = 1.2ms, but 12x12 = 44 SECONDS.
+  it('allows a large field paying few places, and computes it fast', () => {
+    const stacks = Array.from({ length: 50 }, (_, i) => (i + 1) * 1000);
     const started = Date.now();
     const equity = calculateIcmEquity({ stacks, prizes: [500, 300, 200] });
     expect(sum(equity)).toBeCloseTo(1000, 6);
-    expect(Date.now() - started).toBeLessThan(5000);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('refuses a small field paying every place, which is the expensive shape', () => {
+    const stacks = new Array(12).fill(1000);
+    const prizes = new Array(12).fill(100);
+    expect(() => calculateIcmEquity({ stacks, prizes })).toThrow(IcmTooExpensiveError);
+  });
+
+  it('reports both counts on the error, not just the field size', () => {
+    try {
+      calculateIcmEquity({ stacks: new Array(12).fill(1000), prizes: new Array(12).fill(100) });
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(IcmTooExpensiveError);
+      const e = err as IcmTooExpensiveError;
+      expect(e.playerCount).toBe(12);
+      expect(e.prizeCount).toBe(12);
+      expect(e.maxPermutations).toBe(MAX_PERMUTATIONS);
+    }
+  });
+
+  it('still pays a realistic final table that pays everyone', () => {
+    // 9 handed paying 9 = 362,880 perms — about 34ms. Must not be blocked.
+    const stacks = Array.from({ length: 9 }, (_, i) => (i + 1) * 1000);
+    const prizes = [300, 200, 150, 100, 80, 60, 50, 40, 20];
+    const equity = calculateIcmEquity({ stacks, prizes });
+    expect(sum(equity)).toBeCloseTo(1000, 6);
   });
 });
 
@@ -131,5 +157,22 @@ describe('computeIcmSplit', () => {
     const result = computeIcmSplit([5000, 5000], [100, 50]);
     expect(result.enabled).toBe(true);
     expect(sum(result.values)).toBeCloseTo(150, 8);
+  });
+});
+
+describe('icmPermutationCount', () => {
+  it('counts P(n, k)', () => {
+    expect(icmPermutationCount(50, 3)).toBe(50 * 49 * 48);
+    expect(icmPermutationCount(9, 9)).toBe(362_880);
+    expect(icmPermutationCount(12, 12)).toBe(479_001_600);
+  });
+
+  it('ignores prizes the field can never reach', () => {
+    // 3 players cannot fill 10 places; depth is capped by the field.
+    expect(icmPermutationCount(3, 10)).toBe(6);
+  });
+
+  it('short-circuits past the cap instead of overflowing', () => {
+    expect(icmPermutationCount(1000, 500, 1_000)).toBe(Number.POSITIVE_INFINITY);
   });
 });

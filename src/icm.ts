@@ -22,27 +22,60 @@
 /**
  * Refuse to start a recursion that would not finish in human time.
  *
- * Malmuth-Harville is factorial, so the wall-clock cost between "fine"
- * and "hangs the tab" is a couple of players wide: 10 players is
- * milliseconds, 15 is minutes, 20 outlives the tournament. Throwing at a
- * documented limit beats appearing to hang.
+ * The cost is NOT driven by the field size on its own. The recursion
+ * descends once per prize, branching over the remaining players, so the
+ * work is the number of permutations P(n, k) — n players taken k prizes
+ * at a time — and k is capped by the number of prizes.
+ *
+ * That distinction is the whole ballgame, measured:
+ *
+ *     50 players ×  3 prizes  →  117,600 perms  →     1.2 ms
+ *     10 players × 10 prizes  →  3,628,800      →   348 ms
+ *     11 players × 11 prizes  →  39,916,800     →   3.7 s
+ *     12 players × 12 prizes  →  479,001,600    →  44 s
+ *
+ * So a big field paying few places is trivial, while a small field paying
+ * everyone is what actually melts. A player-count limit gets this exactly
+ * backwards — it rejects the 50×3 case that costs a millisecond and waves
+ * through the 12×12 case that costs three quarters of a minute.
+ *
+ * ~10M permutations is roughly a second, so this caps below that.
  */
-export const MAX_PLAYERS = 12;
+export const MAX_PERMUTATIONS = 5_000_000;
 
-export class IcmFieldTooLargeError extends Error {
+export class IcmTooExpensiveError extends Error {
   readonly playerCount: number;
-  readonly maxPlayers: number;
+  readonly prizeCount: number;
+  readonly maxPermutations: number;
 
-  constructor(playerCount: number) {
+  constructor(playerCount: number, prizeCount: number) {
     super(
-      `ICM is factorial in the field size; refusing to compute for ${playerCount} players ` +
-        `(max ${MAX_PLAYERS}). ICM is a final-table tool — filter to the players still in ` +
-        `contention for a prize before calling.`,
+      `ICM would need more than ${MAX_PERMUTATIONS.toLocaleString()} permutations for ` +
+        `${playerCount} players paying ${prizeCount} places, and would take far too long. ` +
+        `Cost grows with players^prizes — reduce the number of paid places, or filter to ` +
+        `the players still in contention for a prize.`,
     );
-    this.name = 'IcmFieldTooLargeError';
+    this.name = 'IcmTooExpensiveError';
     this.playerCount = playerCount;
-    this.maxPlayers = MAX_PLAYERS;
+    this.prizeCount = prizeCount;
+    this.maxPermutations = MAX_PERMUTATIONS;
   }
+}
+
+/**
+ * P(n, k), short-circuiting once it passes `cap` so a pathological input
+ * can't overflow to Infinity on the way to being rejected.
+ */
+export function icmPermutationCount(playerCount: number, prizeCount: number, cap = Number.MAX_SAFE_INTEGER): number {
+  // Prizes beyond the field are never awarded — the recursion runs out of
+  // players first — so they cost nothing and don't count toward depth.
+  const depth = Math.min(prizeCount, playerCount);
+  let acc = 1;
+  for (let i = 0; i < depth; i++) {
+    acc *= playerCount - i;
+    if (acc > cap) return Number.POSITIVE_INFINITY;
+  }
+  return acc;
 }
 
 export interface IcmInput {
@@ -65,12 +98,14 @@ export interface IcmInput {
  * The returned equities sum to the sum of `prizes` (within floating-point
  * tolerance) whenever at least one player has chips.
  *
- * @throws {IcmFieldTooLargeError} if `stacks.length` exceeds {@link MAX_PLAYERS}.
+ * @throws {IcmTooExpensiveError} if the players × prizes combination would
+ *   exceed {@link MAX_PERMUTATIONS}. Note this is about the *combination* —
+ *   a 50-player field paying 3 places is fine; a 12-player field paying all
+ *   12 is not.
  */
 export function calculateIcmEquity({ stacks, prizes }: IcmInput): number[] {
   const n = stacks.length;
   if (n === 0) return [];
-  if (n > MAX_PLAYERS) throw new IcmFieldTooLargeError(n);
 
   // Defensive normalisation: clamp stacks and prizes to non-negative.
   // Mismatched-length prize arrays are handled by treating missing slots
@@ -81,6 +116,12 @@ export function calculateIcmEquity({ stacks, prizes }: IcmInput): number[] {
   const total = cleanStacks.reduce((a, b) => a + b, 0);
   if (total <= 0) return new Array(n).fill(0);
   if (cleanPrizes.length === 0) return new Array(n).fill(0);
+
+  // Check cost only once the cheap exits above are out of the way — a
+  // field with no chips or no prizes never recurses at all.
+  if (icmPermutationCount(n, cleanPrizes.length, MAX_PERMUTATIONS) > MAX_PERMUTATIONS) {
+    throw new IcmTooExpensiveError(n, cleanPrizes.length);
+  }
 
   return icmRecursive(cleanStacks, cleanPrizes, total);
 }

@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0
+
+### Fixed
+
+- **The ICM cost guard measured the wrong thing.** 0.1.0 capped the *player
+  count* at 12, on the belief that ICM is factorial in the field size. It
+  isn't: the recursion descends once per prize, so the cost is permutations
+  `P(n, prizes)`. The old guard was wrong in both directions — it rejected 50
+  players paying 3 places (117,600 permutations, **1.2 ms**) while happily
+  accepting 12 players paying 12 places (479 million permutations, **44
+  seconds**), which is the exact hang it was meant to prevent.
+
+  The guard now caps permutations at `MAX_PERMUTATIONS` (5,000,000, ~0.5s).
+
+### Changed (breaking)
+
+- `MAX_PLAYERS` → `MAX_PERMUTATIONS`.
+- `IcmFieldTooLargeError` → `IcmTooExpensiveError`, now carrying both
+  `playerCount` and `prizeCount`, since neither alone explains the cost.
+- Added `icmPermutationCount(players, prizes)` so callers can check the cost
+  before committing to the call.
+
 ## 0.1.0
 
 Initial release. Extracted from the Poker Hawk tournament platform, where
